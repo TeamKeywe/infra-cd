@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: entrance-service
+  labels:
+    arch: inner
+spec:
+  selector:
+    matchLabels:
+      app: entrance-service
+  template:
+    metadata:
+      labels:
+        app: entrance-service
+    spec:
+      nodeSelector:
+        app: keywe-service
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: entrance-service
+          image: sunwoo11/keywe_entrance_service:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 60008
+            - containerPort: 50008
+          env:
+            - name: TZ
+              value: Asia/Seoul
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_PROFILES_INCLUDE
+              value: "actuator,swagger,datasource,k8s-grpc"
+            - name: CONFIG_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: config-server-url
+            - name: SPRING_RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-host
+            - name: SPRING_RABBITMQ_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-port
+            - name: SPRING_RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-username
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-password
+            - name: MYSQL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: db-host
+            - name: MYSQL_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: db-port
+            - name: MYSQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: db-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: db-pass
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: ent-db-name
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: entrance-service-port
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 60008
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+            successThreshold: 1
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+                  
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: entrance-service
+  labels:
+    arch: inner
+spec:
+  selector:
+    app: entrance-service
+  ports:
+    - port: 60008
+      targetPort: 60008
+      name: http
+    - port: 50008
+      targetPort: 50008
+      name: grpc
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: entrance-service-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: entrance-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60

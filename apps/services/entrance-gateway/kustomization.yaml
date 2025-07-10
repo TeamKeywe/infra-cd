@@ -1,0 +1,7 @@
+resources:
+  - k8s.yaml
+
+images:
+  - name: sunwoo11/keywe_entrance_gateway
+    newName: sunwoo11/keywe_entrance_gateway
+    newTag: dev

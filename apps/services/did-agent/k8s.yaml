@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: did-agent
+  labels:
+    arch: inner
+spec:
+  selector:
+    matchLabels:
+      app: did-agent
+  template:
+    metadata:
+      labels:
+        app: did-agent
+    spec:
+      nodeSelector:
+        app: keywe-service
+      containers:
+        - name: did-agent
+          image: sunwoo11/keywe_did_agent:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 60005
+            - containerPort: 50005
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_PROFILES_INCLUDE
+              value: "actuator,swagger,k8s-grpc,redis"
+            - name: TZ
+              value: Asia/Seoul
+            - name: CONFIG_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: config-server-url
+            - name: SPRING_RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-host
+            - name: SPRING_RABBITMQ_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-port
+            - name: SPRING_RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-username
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-password
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: did-redis-host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: did-redis-port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: did-redis-password
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: did-db-name
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: did-service-port
+            - name: GRPC_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: did-grpc-port
+            - name: MEDIATOR_ADMIN_URL
+              value: http://med-aca:8001
+            - name: HOSPITAL_ADMIN_URL
+              value: http://hos-aca:8002
+            - name:  ACAPY_CREATE_INVITATION
+              value: /out-of-band/create-invitation
+            - name: ACAPY_CHECK_CONNECTION
+              value: /out-of-band/invitations
+            - name: ACAPY_CREATE_DID
+              value: wallet/did/create
+            - name: ACAPY_POST_PUBLIC_DID
+              value: /wallet/did/public
+            - name: ACAPY_ISSUE_VC
+              value: /issue-credential-2.0/send-offer
+          resources:
+            requests:
+              memory: "256Mi" 
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+                  
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: did-agent
+  labels:
+    arch: inner
+    istio: sidecar
+spec:
+  selector:
+    app: did-agent
+  ports:
+    - port: 60005
+      targetPort: 60005
+      name: http
+    - port: 50005
+      targetPort: 50005
+      name: grpc
+    - port: 15090
+      targetPort: 15090
+      name: http-envoy-prom
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: did-agent-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: did-agent
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60

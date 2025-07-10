@@ -1,0 +1,6 @@
+resources:
+  - k8s.yaml
+images:
+  - name: sunwoo11/keywe_entrance_service
+    newName: sunwoo11/keywe_entrance_service
+    newTag: dev

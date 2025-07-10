@@ -1,0 +1,7 @@
+resources:
+  - k8s.yaml
+
+images:
+  - name: sunwoo11/keywe_admin_service
+    newName: sunwoo11/keywe_admin_service
+    newTag: dev

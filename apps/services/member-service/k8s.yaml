@@ -1,0 +1,177 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member-service
+  labels:
+    arch: inner
+spec:
+  selector:
+    matchLabels:
+      app: member-service
+  template:
+    metadata:
+      labels:
+        app: member-service
+    spec:
+      nodeSelector:
+        app: keywe-service
+      containers:
+        - name: member-service
+          image: sunwoo11/keywe_member_service:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 60001
+            - containerPort: 60001
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_PROFILES_INCLUDE
+              value: "actuator,swagger,redis,k8s-grpc,datasource"
+            - name: TZ
+              value: Asia/Seoul
+            - name: CONFIG_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: config-server-url
+            - name: SPRING_RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-host
+            - name: SPRING_RABBITMQ_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-port
+            - name: SPRING_RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-username
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-password
+            - name: MYSQL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: db-host
+            - name: MYSQL_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: db-port
+            - name: MYSQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: db-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: db-pass
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mem-db-name
+            - name: JWT_ACCESS_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: jwt-access-token-secret
+            - name: JWT_REFRESH_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: jwt-refresh-token-secret
+            - name: JWT_ACCESS_TOKEN_EXPIRATION_TIME
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: jwt-access-token-expiration-time
+            - name: JWT_REFRESH_TOKEN_EXPIRATION_TIME
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: jwt-refresh-token-expiration-time
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-redis-host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-redis-port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-redis-password
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: member-service-port
+            - name: GRPC_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: member-grpc-port
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: member-service
+  labels:
+    arch: inner
+    istio: sidecar
+spec:
+  selector:
+    app: member-service
+  ports:
+    - port: 60001
+      targetPort: 60001
+      name: http
+    - port: 50001
+      targetPort: 50001
+      name: grpc
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: member-service-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: member-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60
