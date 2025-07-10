@@ -1,0 +1,7 @@
+resources:
+  - k8s.yaml
+images:
+  - name: sunwoo11/sunwoo11/keywe_did_agent
+    newName: sunwoo11/sunwoo11/keywe_did_agent
+    newTag: dev
+

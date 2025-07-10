@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  labels:
+    arch: outer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-discovery
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+    spec:
+      nodeSelector:
+        app: keywe-service
+      containers:
+        - name: service-discovery
+          image: sunwoo11/keywe_service_discovery:latest
+          imagePullPolicy: Always
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 5
+
+          ports:
+            - containerPort: 8761
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: CONFIG_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: config-server-url
+            - name: SPRING_RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-host
+            - name: SPRING_RABBITMQ_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-port
+            - name: SPRING_RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-username
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-password
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-discovery
+  labels:
+    arch: outer
+spec:
+  selector:
+    app: service-discovery
+  ports:
+    - port: 8761
+      targetPort: 8761

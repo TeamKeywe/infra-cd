@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: core-infra
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TeamDoubleO/infra-cd.git
+    targetRevision: develop
+    path: apps/00-core            # ⬅️ 이 경로에 k8s.yaml 존재
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

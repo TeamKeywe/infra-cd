@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mobile-gateway
+  namespace: default
+  labels:
+    app: mobile-gateway
+    arch: outer
+spec:
+  selector:
+    matchLabels:
+      app: mobile-gateway
+  template:
+    metadata:
+      labels:
+        app: mobile-gateway
+    spec:
+      nodeSelector:
+        app: keywe-service
+      containers:
+        - name: mobile-gateway
+          image: sunwoo11/keywe_mobile_gateway:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: SPRING_PROFILES_INCLUDE
+              value: "actuator,swagger,security,redis,k8s-routes,k8s-grpc"
+            - name: TZ
+              value: Asia/Seoul
+            - name: CONFIG_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: config-server-url
+
+            - name: SPRING_RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-host
+            - name: SPRING_RABBITMQ_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: rabbitmq-port
+            - name: SPRING_RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-username
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: rabbitmq-password
+            - name: JWT_ACCESS_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keywe-secrets
+                  key: jwt-access-token-secret
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-redis-host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-redis-port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-redis-password
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: keywe-config
+                  key: mobile-gateway-port
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mobile-gateway
+  labels:
+    app: mobile-gateway
+    arch: outer
+    istio: sidecar
+spec:
+  selector:
+    app: mobile-gateway
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8081
+      name: http
+  type: ClusterIP
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mobile-gateway-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mobile-gateway
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60 
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60

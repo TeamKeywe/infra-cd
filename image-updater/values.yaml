@@ -1,0 +1,50 @@
+extraArgs:
+  - run
+  - --interval=30m
+
+global:
+  labels:
+    app: argoCD
+
+nodeSelector:
+  app: argoCD-service
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 150m
+    memory: 128Mi
+
+config:
+  logLevel: info
+  updateInterval: 30m
+
+  argoCD:
+    serverAddress: argocd-server.argocd.svc
+    plainText: true
+    insecure: true
+
+  git:
+    writeBack:
+      enabled: true
+      name: Argo CD Image Updater
+      email: updater@keywe.info
+      credentials:
+        username: $(GIT_USERNAME)
+        password: $(GIT_PASSWORD)
+
+extraEnv:
+  - name: GIT_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keywe-secrets
+        key: git-username
+  - name: GIT_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keywe-secrets
+        key: git-token
+  - name: ARGOCD_IMAGE_UPDATER_INTERVAL
+    value: "30m"

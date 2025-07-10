@@ -1,0 +1,6 @@
+resources:
+  - k8s.yaml
+images:
+  - name: sunwoo11/keywe_tenant_service
+    newName: sunwoo11/keywe_tenant_service
+    newTag: dev

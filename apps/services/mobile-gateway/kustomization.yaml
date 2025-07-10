@@ -1,0 +1,6 @@
+resources:
+  - k8s.yaml
+images:
+  - name: sunwoo11/keywe_mobile_gateway
+    newName: sunwoo11/keywe_mobile_gateway
+    newTag: dev
